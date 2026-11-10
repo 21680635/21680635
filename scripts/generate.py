@@ -1,5 +1,14 @@
 #!/usr/bin/env python3
+"""Genera una tarjeta SVG animada con tu calendario de contribuciones de GitHub.
 
+Un gato pixelado recorre el calendario fila por fila, seguido de tres gatitos,
+y va "limpiando" los cuadros mientras el contador de arriba sube.
+
+Uso (en GitHub Actions):
+    GITHUB_TOKEN=... python scripts/generate.py TU_USUARIO dist
+
+Sin dependencias: solo la biblioteca estándar de Python 3.
+"""
 import json
 import os
 import sys
@@ -168,7 +177,7 @@ def build(calendar, theme, frame=None):
 
     o = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" '
          f'viewBox="0 0 {W} {H}" font-family="Consolas,Menlo,Monaco,monospace">',
-         "<style>text,tspan{white-space:pre}.px{shape-rendering:crispEdges}</style>",
+         "<style>.px{shape-rendering:crispEdges}</style>",
          f'<defs><rect id="d" width="{CELL}" height="{CELL}" rx="3"/></defs>',
          f'<rect width="{W}" height="{H}" rx="15" fill="{t["bg"]}"/>']
 
@@ -191,27 +200,29 @@ def build(calendar, theme, frame=None):
     for at, _, _, _, count in active:
         running += count
         steps.append((at, running))
-    o.append(f'<text y="29" font-size="14" fill="{t["text"]}">')
+    # El título va en una sola línea, sin saltos entre <tspan>: Firefox los
+    # interpreta como renglones nuevos y empuja el texto hacia abajo.
+    title = []
     for i, (at, count) in enumerate(steps):
         nxt = steps[i + 1][0] if i + 1 < len(steps) else None
         if not anim:
             if at <= frame and (nxt is None or frame < nxt):
-                o.append(f'<tspan x="15">{label(count)}</tspan>')
+                title.append(f'<tspan x="15" y="29">{label(count)}</tspan>')
             continue
         if i == 0:
             vals, keys = "visible;hidden", f"0;{frac(nxt)}" if nxt is not None else None
             if keys is None:
-                o.append(f'<tspan x="15">{label(count)}</tspan>')
+                title.append(f'<tspan x="15" y="29">{label(count)}</tspan>')
                 continue
             vis = "visible"
         elif nxt is None:
             vals, keys, vis = "hidden;visible", f"0;{frac(at)}", "hidden"
         else:
             vals, keys, vis = "hidden;visible;hidden", f"0;{frac(at)};{frac(nxt)}", "hidden"
-        o.append(f'<tspan x="15" visibility="{vis}"><animate attributeName="visibility" '
+        title.append(f'<tspan x="15" y="29" visibility="{vis}"><animate attributeName="visibility" '
                  f'values="{vals}" keyTimes="{keys}" dur="{n(dur)}s" calcMode="discrete" '
                  f'repeatCount="indefinite"/>{label(count)}</tspan>')
-    o.append("</text>")
+    o.append(f'<text font-size="14" fill="{t["text"]}">' + "".join(title) + "</text>")
 
     # Etiquetas de meses y días
     o.append(f'<g font-size="12" fill="{t["muted"]}">')
